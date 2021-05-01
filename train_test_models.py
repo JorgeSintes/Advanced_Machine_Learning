@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from models import VariationalInference
 
-def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, hidden_size, batch_size=100, num_epochs=20):
+def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, hidden_size, batch_size=100, num_epochs=20, beta=1):
     '''
     Train and test a model in particular
     '''
@@ -73,9 +73,9 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
         px_train = torch.Tensor.cpu(diagnostics_train['log_px'])
         px_test = torch.Tensor.cpu(diagnostics_test['log_px'])
         
-        r = (torch.sum(y_train) / len(y_train)).item()
+        r = (torch.sum(y_train)/len(y_train)).item()
         
-        px_threshold = np.percentile(px_train, r)
+        px_threshold = np.percentile(px_train, 100*r)
         
         y_pred_train = np.array(px_train < px_threshold, dtype=float)
         y_pred_test = np.array(px_test < px_threshold, dtype=float)

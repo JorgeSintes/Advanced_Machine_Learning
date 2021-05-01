@@ -520,6 +520,10 @@ class Model4(nn.Module):
 ##############################################################################
 
 # GRU-VAE both encoder and decoder
+# There's two versions, one keeping hidden_size of decoder BIG and taking the last one only,
+# and another one keeping the hidden_size small and taking all hidden states
+
+# Right now it's the first one, need to change it to the other one?
 
 class Model5(nn.Module):
 #class VariationalAutoencoder(nn.Module):
@@ -785,17 +789,21 @@ class Arthur(nn.Module):
     """
     
     def __init__(self, input_shape:torch.Size, latent_features:int, hidden_size:int, sequence_length:int,num_layers:int, batch_size = 100) -> None:
+        #super(VariationalAutoencoder, self).__init__()
         super(Arthur, self).__init__()
 
         self.input_shape = input_shape
         self.input_size = 1
         self.latent_features = latent_features
         # input shape should be a list, np.prod returns the product of its elements
-        self.observation_features = np.prod([self.input_size,sequence_length])
+        self.observation_features = np.prod([input_shape,sequence_length])
         self.sequence_length = sequence_length
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.batch_size = batch_size
+        jump = int((latent_features-1-2*self.input_size)/3)
+        layer1 = latent_features - 1 - jump
+        layer2 = latent_features - 1 - 2*jump
         
 
         # Inference Network
@@ -804,13 +812,21 @@ class Arthur(nn.Module):
         #self.prnt = PrintLayer()
         self.gru_enc = nn.GRU(self.input_size, 2*latent_features, num_layers, batch_first=True, dropout = 0.2)
 
-
         # Generative Model
         # Decode the latent sample `z` into the parameters of the observation model
         # `p_\theta(x | z) = \prod_i B(x_i | g_\theta(x))`
 
-        self.gru_dec = nn.GRU(self.input_size, 2*self.input_size, num_layers, batch_first=True, dropout = 0.2)
+        self.gru_dec = nn.GRU(self.input_size, latent_features-1, num_layers, batch_first=True, dropout = 0.2)
         
+        self.lin_dec = nn.Sequential(
+            nn.Linear(in_features=latent_features-1, out_features=layer1),
+            nn.ReLU(),
+            nn.Linear(in_features=layer1, out_features=layer2),
+            nn.ReLU(),
+            # A Gaussian is fully characterised by its mean \mu and variance \sigma**2
+            nn.Linear(in_features=layer2, out_features=2*self.input_size) # <- note the 2*latent_features
+        )
+
         # define the parameters of the prior, chosen as p(z) = N(0, I)
         # Here everything is only a vector of 0 as we store log_sigma and not sigma
         self.register_buffer('prior_params', torch.zeros(torch.Size([1, 2*latent_features])))
@@ -839,35 +855,43 @@ class Arthur(nn.Module):
         # return the distribution `p(z)`
         return ReparameterizedDiagonalGaussian(mu, log_sigma)
     
-    def observation_model(self, z:Tensor,x_init=None) -> Distribution:
+    def observation_model(self, z:Tensor) -> Distribution:
         """return the distribution `p(x|z)`"""
 
-        if x_init == None:
-          x_init = torch.zeros(self.batch_size, self.input_size)
-        
-        mus = torch.empty((self.batch_size, self.sequence_length, self.input_size), device = 'cuda:0')
-        log_sigmas = torch.empty((self.batch_size, self.sequence_length, self.input_size), device = 'cuda:0')
-        
-        z = z.view(-1, self.batch_size, self.latent_features)
+        mus = torch.empty((self.batch_size, self.sequence_length, self.input_size), device='cuda:0')
+        log_sigmas = torch.empty((self.batch_size, self.sequence_length, self.input_size), device='cuda:0')
 
-        x_init = x_init.view(self.batch_size,-1, self.input_size)
-        out, h = self.gru_dec(x_init,z)
+        # Extracting first element of each sequence for each batch
+        # Done before reshapping to match input dims of GRU (batch_size,seq_len,inp_size)
+        
+        z = z.reshape(-1, self.batch_size, self.latent_features)
+        x_init = z[:,:,:self.input_size]
+        x_init = x_init.reshape(self.batch_size, -1, self.input_size)
+        # Extracting only starting hidden state without initial point
+        # Required dimensions (seq_len,batch_size,inp_size)
+        z = z[:,:,self.input_size:].contiguous()
+        _ , h = self.gru_dec(x_init,z)
 
+        # Getting copy here to avoid reshapping later
         h_copy = h.reshape(self.batch_size,-1)
-        mu, log_sigma =  h_copy.chunk(2, dim=-1)
+        
+        # Downscaling copy to obtain mu and sigma
+        musig = self.lin_dec(h_copy) 
+        mu, log_sigma = musig.chunk(2, dim=-1)
 
         mus[:,0,:] = mu
         log_sigmas[:,0,:] = log_sigma
 
         # reshaping mu to fit required input dimensions of GRU
-        mu = mu.reshape(self.batch_size,-1,self.input_size)
-        #VERIFY THE CHUNCK CALLS IN OTHER CODES 
+        mu = mu.reshape(self.batch_size,-1,self.input_size) 
 
         for i in range(self.sequence_length-1):
           
           _, h = self.gru_dec(mu,h)
           h_copy = h.reshape(self.batch_size,-1)
-          mu, log_sigma =  h_copy.chunk(2, dim=-1)
+
+          musig = self.lin_dec(h_copy) 
+          mu, log_sigma =  musig.chunk(2, dim=-1)
           mus[:,i+1,:] = mu
           log_sigmas[:,i+1,:] = log_sigma
 
@@ -876,7 +900,7 @@ class Arthur(nn.Module):
         
         mus = mus.reshape(self.batch_size,-1)
         log_sigmas = log_sigmas.reshape(self.batch_size,-1)
-        #px_logits = px_logits.view(-1, *self.input_size) # reshape the output
+        #px_logits = px_logits.view(-1, *self.input_shape) # reshape the output
         #print(f'mus = {mus.shape}')
         #print(f'log_sigmas = {log_sigmas.shape}')
         # We get the probability of getting a white or black pixels
@@ -890,7 +914,6 @@ class Arthur(nn.Module):
         #x = x.view(x.size(0), -1)
         x = x.view(-1,self.sequence_length, self.input_size)
         self.batch_size = x.size(0)
-        
         # define the posterior q(z|x) / encode x into q(z|x)
         qz = self.posterior(x)
         
@@ -901,7 +924,7 @@ class Arthur(nn.Module):
         z = qz.rsample()
         
         # define the observation model p(x|z) = B(x | g(z))
-        px = self.observation_model(z,x[:,0,:])
+        px = self.observation_model(z)
         
         return {'px': px, 'pz': pz, 'qz': qz, 'z': z}
     
@@ -916,6 +939,6 @@ class Arthur(nn.Module):
         z = pz.rsample()
         
         # define the observation model p(x|z) = B(x | g(z))
-        px = self.observation_model(z,x_init)
+        px = self.observation_model(z)
         
         return {'px': px, 'pz': pz, 'z': z}

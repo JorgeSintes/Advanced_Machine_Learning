@@ -5,7 +5,7 @@ import numpy as np
 from sklearn import model_selection
 from train_test_models import train_test_models
 
-def cross_val_loop(X, y, models, latent_spaces, hidden_size, K):
+def cross_val_loop(X, y, models, latent_spaces, hidden_size, K, batch_size=100, num_epochs=20, beta=1):
     
     n_models = len(models)
     n_spaces = len(latent_spaces)
@@ -18,6 +18,8 @@ def cross_val_loop(X, y, models, latent_spaces, hidden_size, K):
     k=0
     for train_index, test_index in CV.split(X,y):
         
+        print(f'Inner loop: {k+1}/{K}')
+        
         X_train = X[train_index]
         y_train = y[train_index]
         X_test = X[test_index]
@@ -26,7 +28,7 @@ def cross_val_loop(X, y, models, latent_spaces, hidden_size, K):
         for s, latent_features in enumerate(latent_spaces):
                 for m, model in enumerate(models):
                     error_train[k,s,m], error_test[k,s,m] = train_test_models(X_train, y_train, X_test, y_test, 
-                                                                              model, latent_features, hidden_size)
+                                                                              model, latent_features, hidden_size, beta)
         
         k += 1
     

@@ -16,20 +16,20 @@ y_test = y[4000:]
 
 #%%
 
-error_train, error_test = train_test_models(X_train, y_train, X_test, y_test, Arthur, latent_features=2, hidden_size=4, 
-                                            batch_size=100, num_epochs=1)
+# error_train, error_test = train_test_models(X_train, y_train, X_test, y_test, Arthur, latent_features=2, hidden_size=4, 
+#                                             batch_size=100, num_epochs=100)
 
-print('Train error: ', error_train)
-print('Test error: ', error_test)
+# print('Train error: ', error_train)
+# print('Test error: ', error_test)
 
 #%%
 
 models = [Model2, Arthur]
-latent_spaces = np.arange(2,3)
+latent_spaces = np.arange(10,11)
 hidden_size = 4
 
 K = 5
 
-opt_error, opt_size, error_table = cross_val_loop(X, y, models, latent_spaces, hidden_size, K)
+opt_error, opt_size, error_table = cross_val_loop(X, y, models, latent_spaces, hidden_size, K, batch_size=100, num_epochs=20)
 
 print(f'Error: {opt_error}. Latent size: {opt_size}')

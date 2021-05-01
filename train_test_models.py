@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch
+from torch import nn
 from models import VariationalInference
 
 def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, hidden_size, batch_size=100, num_epochs=20, beta=1):
@@ -33,8 +34,8 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
     epoch = 0    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f">> Using device: {device}")
-    
+    # print(f">> Using device: {device}. Training {model}")
+        
     # move the model to the device
     vae = vae.to(device)
     
@@ -79,6 +80,73 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
         
         y_pred_train = np.array(px_train < px_threshold, dtype=float)
         y_pred_test = np.array(px_test < px_threshold, dtype=float)
+        
+        error_train = np.abs((y_train - y_pred_train)).mean()
+        error_test = np.abs((y_test - y_pred_test)).mean()
+    
+    return error_train.item(), error_test.item()
+
+
+def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_size=100, num_epochs=20):
+    
+    input_shape = X_train[0].shape
+    sequence_length = X_train.size(1)
+    num_layers = 1
+    learning_rate = 1e-3
+    
+    X_train_batches = torch.split(X_train, batch_size, dim=0)
+    y_train_batches = torch.split(y_train, batch_size, dim=0)
+    # X_test_batches = torch.split(X_test, batch_size, dim=0)
+    # y_test_batches = torch.split(y_test, batch_size, dim=0)
+    
+    model = cmc(input_shape, hidden_size, num_layers)
+    
+    # Loss and optimizer
+    criterion = nn.BCELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
+    
+    epoch = 0    
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # print(f">> Using device: {device}. Training {model}")
+        
+    # move the model to the device
+    model = model.to(device)
+        
+    # training..
+    while epoch < num_epochs:
+        epoch += 1
+        print(epoch)
+        # model.train()
+        
+        for x, y in zip(X_train_batches, y_train_batches):
+            x = x.to(device)
+            y = y.to(device)
+            
+            # perform a forward pass through the model and compute the ELBO
+            y_pred = model(x)
+            loss = criterion(y_pred, y)
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+    
+    with torch.no_grad():
+        model.eval()
+        
+         # Load all the training and test data without batches
+        x_train = X_train
+        x_test = X_test
+
+        x_train = x_train.to(device)
+        x_test = x_test.to(device)
+        
+        # perform a forward pass through the model and compute the ELBO
+        y_prob_train = torch.Tensor.cpu(model(x_train))
+        y_prob_test = torch.Tensor.cpu(model(x_test))
+        
+        y_pred_train = np.array(y_prob_train >= 0.5, dtype=float)
+        y_pred_test = np.array(y_prob_test >= 0.5, dtype=float)
         
         error_train = np.abs((y_train - y_pred_train)).mean()
         error_test = np.abs((y_test - y_pred_test)).mean()

@@ -117,23 +117,42 @@ class PrintLayer(nn.Module):
 
 # Clément's Magical Creation TM
 
-class Model1(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, num_classes):
-        super(Model1, self).__init__()
+class CMC(nn.Module):
+    def __init__(self, input_shape, hidden_size, num_layers):
+        super(CMC, self).__init__()
+        
+        self.input_shape = input_shape
+        self.input_size = 1
+        
         self.num_layers = num_layers
         self.hidden_size = hidden_size
         
+        jump = int((hidden_size - 1) / 3)
+        layer1 = hidden_size - jump
+        layer2 = hidden_size - 2*jump
+
+        
         # or:
-        self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, num_classes)
+        self.gru = nn.GRU(self.input_size, hidden_size, num_layers, batch_first=True)
+        
+        # self.fc = nn.Linear(hidden_size, 1)
+        
+        self.fc = nn.Sequential(
+            nn.Linear(in_features=self.hidden_size, out_features=layer1),
+            nn.ReLU(),
+            nn.Linear(in_features=layer1, out_features=layer2),
+            nn.ReLU(),
+            # A Gaussian is fully characterised by its mean \mu and variance \sigma**2
+            nn.Linear(in_features=layer2, out_features=1) # <- note the 2*latent_features
+        )
         self.sig = nn.Sigmoid()
         
     def forward(self, x):
         # Set initial hidden states (and cell states for LSTM)
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(device) 
-               
+        
+        x = x.reshape(x.size(0), x.size(1), 1)
         # Forward propagate RNN
-        out, _ = self.gru(x, h0)
+        out, _ = self.gru(x)
                 
         # out: tensor of shape (batch_size, seq_length, hidden_size)
         
@@ -278,9 +297,10 @@ class Model3(nn.Module):
         super(Model3, self).__init__()
 
         self.input_shape = input_shape
+        self.input_size = 1
         self.latent_features = latent_features
         # input shape should be a list, np.prod returns the product of its elements
-        self.observation_features = np.prod([input_shape,sequence_length])
+        self.observation_features = np.prod([self.input_size,sequence_length])
         self.sequence_length = sequence_length
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -292,7 +312,7 @@ class Model3(nn.Module):
         # Inference Network
         # Encode the observation `x` into the parameters of the posterior distribution
         # `q_\phi(z|x) = N(z | \mu(x), \sigma(x)), \mu(x),\log\sigma(x) = h_\phi(x)`
-        self.gru = nn.GRU(input_shape, hidden_size, num_layers, batch_first=True)
+        self.gru = nn.GRU(self.input_size, hidden_size, num_layers, batch_first=True)
 
         self.encoder = nn.Sequential(
             nn.Linear(in_features=hidden_size, out_features=layer1),
@@ -353,7 +373,7 @@ class Model3(nn.Module):
         """compute the posterior q(z|x) (encoder), sample z~q(z|x) and return the distribution p(x|z) (decoder)"""
         
         # flatten the input # x.size(0) is equivalent to the batch size
-        x = x.reshape(x.size(0), self.sequence_length, self.input_shape)
+        x = x.reshape(x.size(0), self.sequence_length, self.input_size)
         
         # define the posterior q(z|x) / encode x into q(z|x)
         qz = self.posterior(x)
@@ -402,9 +422,10 @@ class Model4(nn.Module):
         super(Model4, self).__init__()
 
         self.input_shape = input_shape
+        self.input_size = 1
         self.latent_features = latent_features
         # input shape should be a list, np.prod returns the product of its elements
-        self.observation_features = np.prod([input_shape,sequence_length])
+        self.observation_features = np.prod([self.input_size,sequence_length])
         self.sequence_length = sequence_length
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -417,7 +438,7 @@ class Model4(nn.Module):
         # Encode the observation `x` into the parameters of the posterior distribution
         # `q_\phi(z|x) = N(z | \mu(x), \sigma(x)), \mu(x),\log\sigma(x) = h_\phi(x)`
         #self.prnt = PrintLayer()
-        self.gru_enc = nn.GRU(input_shape, hidden_size, num_layers, batch_first=True)
+        self.gru_enc = nn.GRU(self.input_size, hidden_size, num_layers, batch_first=True)
 
         self.encoder = nn.Sequential(
             nn.Linear(in_features=hidden_size, out_features=layer1),
@@ -483,7 +504,7 @@ class Model4(nn.Module):
         """compute the posterior q(z|x) (encoder), sample z~q(z|x) and return the distribution p(x|z) (decoder)"""
         
         # flatten the input # x.size(0) is equivalent to the batch size
-        x = x.view(-1,self.sequence_length, self.input_shape)
+        x = x.view(-1,self.sequence_length, self.input_size)
         
         # define the posterior q(z|x) / encode x into q(z|x)
         qz = self.posterior(x)
@@ -537,9 +558,10 @@ class Model5(nn.Module):
         super(Model5, self).__init__()
 
         self.input_shape = input_shape
+        self.input_size = 1
         self.latent_features = latent_features
         # input shape should be a list, np.prod returns the product of its elements
-        self.observation_features = np.prod([input_shape,sequence_length])
+        self.observation_features = np.prod([self.input_size,sequence_length])
         self.sequence_length = sequence_length
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -556,7 +578,7 @@ class Model5(nn.Module):
         # Encode the observation `x` into the parameters of the posterior distribution
         # `q_\phi(z|x) = N(z | \mu(x), \sigma(x)), \mu(x),\log\sigma(x) = h_\phi(x)`
         #self.prnt = PrintLayer()
-        self.gru = nn.GRU(input_shape, hidden_size, num_layers, batch_first=True)
+        self.gru = nn.GRU(self.input_size, hidden_size, num_layers, batch_first=True)
 
         self.encoder = nn.Sequential(
             nn.Linear(in_features=hidden_size, out_features=layer1_1),
@@ -580,7 +602,7 @@ class Model5(nn.Module):
             nn.Linear(in_features=layer2_2, out_features=sequence_length)
         )
 
-        self.gru_dec = nn.GRU(input_shape, 2*sequence_length, num_layers, batch_first=True)
+        self.gru_dec = nn.GRU(self.input_size, 2*self.input_size, num_layers, batch_first=True)
         
         # define the parameters of the prior, chosen as p(z) = N(0, I)
         # Here everything is only a vector of 0 as we store log_sigma and not sigma
@@ -613,9 +635,9 @@ class Model5(nn.Module):
         """return the distribution `p(x|z)`"""
 
         z = self.decoder(z)
-        z = z.view(z.size(0),-1, self.input_shape)
+        z = z.view(z.size(0),-1, self.input_size)
         z, _ = self.gru_dec(z)
-        z = z[:,-1,:]
+        
         px_logits = z.reshape(z.size(0),-1)
         mu, log_sigma =  px_logits.chunk(2, dim=-1)
         # We get the probability of getting a white or black pixels
@@ -625,7 +647,7 @@ class Model5(nn.Module):
     def forward(self, x) -> Dict[str, Any]:
         """compute the posterior q(z|x) (encoder), sample z~q(z|x) and return the distribution p(x|z) (decoder)"""
         
-        x = x.view(-1,self.sequence_length, self.input_shape)
+        x = x.view(-1,self.sequence_length, self.input_size)
         
         # define the posterior q(z|x) / encode x into q(z|x)
         qz = self.posterior(x)
@@ -674,9 +696,10 @@ class Model6(nn.Module):
         super(Model6, self).__init__()
 
         self.input_shape = input_shape
+        self.input_size = 1
         self.latent_features = latent_features
         # input shape should be a list, np.prod returns the product of its elements
-        self.observation_features = np.prod([input_shape,sequence_length])
+        self.observation_features = np.prod([self.input_size,sequence_length])
         self.sequence_length = sequence_length
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -685,7 +708,7 @@ class Model6(nn.Module):
         # Inference Network
         # Encode the observation `x` into the parameters of the posterior distribution
         # `q_\phi(z|x) = N(z | \mu(x), \sigma(x)), \mu(x),\log\sigma(x) = h_\phi(x)`
-        self.encoder_gru = nn.GRU(input_shape, 2*self.latent_features, num_layers, batch_first=True)
+        self.encoder_gru = nn.GRU(self.input_size, 2*self.latent_features, num_layers, batch_first=True)
 
         # Generative Model
         # Decode the latent sample `z` into the parameters of the observation model
@@ -744,7 +767,7 @@ class Model6(nn.Module):
         """compute the posterior q(z|x) (encoder), sample z~q(z|x) and return the distribution p(x|z) (decoder)"""
         
         # flatten the input # x.size(0) is equivalent to the batch size
-        x = x.view(-1,self.sequence_length, self.input_shape)
+        x = x.view(-1,self.sequence_length, self.input_size)
         
         # define the posterior q(z|x) / encode x into q(z|x)
         qz = self.posterior(x)

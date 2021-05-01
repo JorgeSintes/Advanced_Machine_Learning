@@ -4,6 +4,7 @@
 import numpy as np
 from sklearn import model_selection
 from train_test_models import train_test_models
+from models import CMC
 
 def cross_val_loop(X, y, models, latent_spaces, hidden_size, K, batch_size=100, num_epochs=20, beta=1):
     
@@ -13,12 +14,13 @@ def cross_val_loop(X, y, models, latent_spaces, hidden_size, K, batch_size=100, 
     error_train = np.empty((K, n_spaces, n_models))
     error_test = np.empty((K, n_spaces, n_models))
     
-    CV = model_selection.StratifiedKFold(K, shuffle=True)
+    # CV = model_selection.StratifiedKFold(K, shuffle=True)
+    CV = model_selection.KFold(K, shuffle=True)
     
     k=0
     for train_index, test_index in CV.split(X,y):
         
-        print(f'Inner loop: {k+1}/{K}')
+        print(f'\t Inner loop: {k+1}/{K}')
         
         X_train = X[train_index]
         y_train = y[train_index]
@@ -28,7 +30,8 @@ def cross_val_loop(X, y, models, latent_spaces, hidden_size, K, batch_size=100, 
         for s, latent_features in enumerate(latent_spaces):
                 for m, model in enumerate(models):
                     error_train[k,s,m], error_test[k,s,m] = train_test_models(X_train, y_train, X_test, y_test, 
-                                                                              model, latent_features, hidden_size, beta)
+                                                                              model, latent_features, hidden_size, 
+                                                                              batch_size, num_epochs, beta)
         
         k += 1
     

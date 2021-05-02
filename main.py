@@ -4,7 +4,7 @@
 import numpy as np
 from models import CMC, Model2, Model3, Model4, Model5, Model6, Arthur
 from inner_loop import cross_val_loop
-from data import load_data
+from data_json import load_data
 from train_test_models import train_test_models, train_test_CMC
 
 X, y = load_data(anomaly_threshold=2)
@@ -16,11 +16,10 @@ y_test = y[4000:]
 
 #%%
 
-# error_train, error_test = train_test_models(X_train, y_train, X_test, y_test, Model2, latent_features=2, hidden_size=4, 
-#                                             batch_size=100, num_epochs=20)
+error_train, error_test = train_test_models(X_train, y_train, X_test, y_test, Arthur, latent_features=30, hidden_size=60, batch_size=100, num_epochs=2)
 
-error_train, error_test = train_test_CMC(X_train, y_train, X_test, y_test, CMC, hidden_size=40, 
-                                            batch_size=100, num_epochs=20)
+#error_train, error_test = train_test_CMC(X_train, y_train, X_test, y_test, CMC, hidden_size=40, 
+#                                            batch_size=100, num_epochs=2)
 
 print('Train error: ', error_train)
 print('Test error: ', error_test)

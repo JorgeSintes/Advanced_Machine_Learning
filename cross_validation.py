@@ -79,7 +79,7 @@ for train_index, test_index in CV_outer.split(X, y):
     
     for m, ls in enumerate(opt_latent_space[k_outer,:]):
         error_train[k_outer, m], error_test[k_outer, m] = train_test_models(X_train, y_train, X_test, y_test, 
-                                                                            models[m], ls, hidden_size, batch_size, num_epochs, beta)
+                                                                            models[m], ls, hidden_size, batch_size, num_epochs, beta, K=k_outer+1)
     k_outer += 1
     
 

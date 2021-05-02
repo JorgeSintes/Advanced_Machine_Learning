@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from models import VariationalInference
 
-def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, hidden_size, batch_size=100, num_epochs=20, beta=1):
+def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, hidden_size, batch_size=100, num_epochs=20, beta=1, K=None):
     '''
     Train and test a model in particular
     '''
@@ -67,6 +67,9 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
         x_train = x_train.to(device)
         x_test = x_test.to(device)
         
+        if K != None:
+            torch.save({str(K)+vae.__class__.__name__+'_state_dict': vae.state_dict()}, str(K)+vae.__class__.__name__+'_weights.tar')
+        
         # perform a forward pass through the model and compute the ELBO
         loss_train, diagnostics_train, outputs_train = vi(vae, x_train)
         loss_test, diagnostics_test, outputs_test = vi(vae, x_test)
@@ -87,7 +90,7 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
     return error_train.item(), error_test.item()
 
 
-def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_size=100, num_epochs=20):
+def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_size=100, num_epochs=20, K=None):
     
     input_shape = X_train[0].shape
     sequence_length = X_train.size(1)
@@ -134,6 +137,8 @@ def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_siz
     with torch.no_grad():
         model.eval()
         
+        if K != None:
+            torch.save({str(K)+model.__class__.__name__+'_state_dict': model.state_dict()}, str(K)+model.__class__.__name__+'_weights.tar')
          # Load all the training and test data without batches
         x_train = X_train
         x_test = X_test

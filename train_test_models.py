@@ -5,8 +5,9 @@ import numpy as np
 import torch
 from torch import nn
 from models import VariationalInference
+from sklearn.metrics import confusion_matrix, f1_score
 
-def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, hidden_size, batch_size=100, num_epochs=20, beta=1, K=None):
+def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, beta, hidden_size, batch_size=100, num_epochs=20, L=5, K=None, output_file=None):
     '''
     Train and test a model in particular
     '''
@@ -34,7 +35,11 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
     epoch = 0    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # print(f">> Using device: {device}. Training {model}")
+    print(f"\t\t Using device: {device}. Training {model.__name__}")
+    if output_file:        
+            output_file.write(f"\t\t Using device: {device}. Training {model.__name__} \n")
+            output_file.flush()
+    
         
     # move the model to the device
     vae = vae.to(device)
@@ -72,25 +77,47 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
         
         # perform a forward pass through the model and compute the ELBO
         loss_train, diagnostics_train, outputs_train = vi(vae, x_train)
-        loss_test, diagnostics_test, outputs_test = vi(vae, x_test)
+        
+        test_len = len(x_test)
+        px_test_Lsamples = torch.empty(L,test_len)
+        
+        for i in range(L):
+            loss_test, diagnostics_test, outputs_test = vi(vae, x_test)
+            px_test_Lsamples[i] = diagnostics_test['log_px'].cpu()
+        
+        # Define random indexes for slicing px_test_Lsamples
+        px_test = torch.mean(px_test_Lsamples,0)
         
         px_train = torch.Tensor.cpu(diagnostics_train['log_px'])
         px_test = torch.Tensor.cpu(diagnostics_test['log_px'])
         
         r = (torch.sum(y_train)/len(y_train)).item()
         
+        # px_threshold based on the training set only
         px_threshold = np.percentile(px_train, 100*r)
         
         y_pred_train = np.array(px_train < px_threshold, dtype=float)
         y_pred_test = np.array(px_test < px_threshold, dtype=float)
         
+        # px_threshold based on train and test set (cheating a bit)
+        # px_threshold_train = np.percentile(px_train, 100*r)
+        # px_threshold_test = np.percentile(px_test, 100*r)
+        
+        # y_pred_train = np.array(px_train < px_threshold_train, dtype=float)
+        # y_pred_test = np.array(px_test < px_threshold_test, dtype=float)
+        
         error_train = np.abs((y_train - y_pred_train)).mean()
         error_test = np.abs((y_test - y_pred_test)).mean()
-    
-    return error_train.item(), error_test.item()
+        
+        # Calculate number of true pos (TP), true neg (TN), false pos (FP), false neg (FN)
+        cm = confusion_matrix(y_test, y_pred_test)
+        TN,FN,FP,TP = cm[0,0], cm[1,0], cm[0,1], cm[1,1]
+        F1 = f1_score(y_test,y_pred_test)
+        
+    return (error_train.item(), error_test.item(), TN, FN, FP, TP, F1)
 
 
-def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_size=100, num_epochs=20, K=None):
+def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_size=100, num_epochs=20, K=None, output_file=None):
     
     input_shape = X_train[0].shape
     sequence_length = X_train.size(1)
@@ -111,7 +138,10 @@ def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_siz
     epoch = 0    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # print(f">> Using device: {device}. Training {model}")
+    print(f"\t\t Using device: {device}. Training {cmc.__name__}")
+    if output_file:        
+            output_file.write(f"\t\t Using device: {device}. Training {cmc.__name__} \n")
+            output_file.flush()
         
     # move the model to the device
     model = model.to(device)
@@ -119,12 +149,14 @@ def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_siz
     # training..
     while epoch < num_epochs:
         epoch += 1
-        print(epoch)
-        # model.train()
+        model.train()
         
         for x, y in zip(X_train_batches, y_train_batches):
             x = x.to(device)
             y = y.to(device)
+            
+            # Avoiding deprecation warning
+            y = y.reshape(-1, 1)
             
             # perform a forward pass through the model and compute the ELBO
             y_pred = model(x)
@@ -138,7 +170,7 @@ def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_siz
         model.eval()
         
         if K != None:
-            torch.save({str(K)+model.__class__.__name__+'_state_dict': model.state_dict()}, str(K)+model.__class__.__name__+'_weights.tar')
+            torch.save({str(K)+model.__class__.__name__+'_state_dict': model.state_dict()}, str(K)+'_'+model.__class__.__name__+'_weights.tar')
          # Load all the training and test data without batches
         x_train = X_train
         x_test = X_test
@@ -155,5 +187,10 @@ def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_siz
         
         error_train = np.abs((y_train - y_pred_train)).mean()
         error_test = np.abs((y_test - y_pred_test)).mean()
-    
-    return error_train.item(), error_test.item()
+        
+        # Calculate number of true pos (TP), true neg (TN), false pos (FP), false neg (FN)
+        cm = confusion_matrix(y_test, y_pred_test)
+        TN,FN,FP,TP = cm[0,0], cm[1,0], cm[0,1], cm[1,1]
+        F1 = f1_score(y_test,y_pred_test)
+        
+    return (error_train.item(), error_test.item(), TN, FN, FP, TP, F1)

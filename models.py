@@ -305,23 +305,23 @@ class Model3(nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         
-        jump = int((hidden_size - 2*latent_features) / 3)
-        layer1 = hidden_size - jump
-        layer2 = hidden_size - 2*jump
+        # jump = int((hidden_size - 2*latent_features) / 3)
+        # layer1 = hidden_size - jump
+        # layer2 = hidden_size - 2*jump
 
         # Inference Network
         # Encode the observation `x` into the parameters of the posterior distribution
         # `q_\phi(z|x) = N(z | \mu(x), \sigma(x)), \mu(x),\log\sigma(x) = h_\phi(x)`
-        self.gru = nn.GRU(self.input_size, hidden_size, num_layers, batch_first=True)
+        self.gru = nn.GRU(self.input_size, 2*self.latent_features, num_layers, batch_first=True)
 
-        self.encoder = nn.Sequential(
-            nn.Linear(in_features=hidden_size, out_features=layer1),
-            nn.ReLU(),
-            nn.Linear(in_features=layer1, out_features=layer2),
-            nn.ReLU(),
-            # A Gaussian is fully characterised by its mean \mu and variance \sigma**2
-            nn.Linear(in_features=layer2, out_features=2*self.latent_features), # <- note the 2*latent_features
-        )
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(in_features=hidden_size, out_features=layer1),
+        #     nn.ReLU(),
+        #     nn.Linear(in_features=layer1, out_features=layer2),
+        #     nn.ReLU(),
+        #     # A Gaussian is fully characterised by its mean \mu and variance \sigma**2
+        #     nn.Linear(in_features=layer2, out_features=2*self.latent_features), # <- note the 2*latent_features
+        # )
         
         # Generative Model
         # Decode the latent sample `z` into the parameters of the observation model
@@ -345,10 +345,10 @@ class Model3(nn.Module):
         x, _ = self.gru(x)
         # out: tensor of shape (batch_size, seq_length, hidden_size)
         x = x[:, -1, :]
-        x = x.reshape(x.size(0), self.hidden_size)
+        x = x.reshape(x.size(0), 2*self.latent_features)
 
-        h_x = self.encoder(x)
-        mu, log_sigma =  h_x.chunk(2, dim=-1)
+        # h_x = self.encoder(x)
+        mu, log_sigma =  x.chunk(2, dim=-1)
         
         # return a distribution `q(z|x) = N(z | \mu(x), \sigma(x))`
         return ReparameterizedDiagonalGaussian(mu, log_sigma)

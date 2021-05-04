@@ -31,7 +31,7 @@ batch_size = 100
 num_epochs = 35
 L = 5
 
-models_selec = [1,2,3]
+models_selec = [3]
 
 run = '123'
 

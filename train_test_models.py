@@ -117,17 +117,23 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
         F1 = f1_score(y_test,y_pred_test)
         
         if K:
-            rocplot_dict = {'px_train': [list(px_train)],
-                            'px_test': [list(px_test)],
-                            'y_pred_train': [list(y_pred_train)],
-                            'y_pred_test': [list(y_pred_test)],
-                            'y_train': [list(y_train)],
-                            'y_test': [list(y_test)],
-                            'px_threshold': [px_threshold]
+            rocplot_dict_train = {'px_train': px_train,
+                            'y_pred_train': y_pred_train,
+                            'y_train': y_train,
+                            'px_threshold': px_threshold
                 }
             
-            df_rocplot = pd.DataFrame(rocplot_dict)
-            df_rocplot.to_json(r'Results/' + str(K) + vae.__class__.__name__ + '_rocplot.json', default_handler=str)
+            rocplot_dict_test = {'px_test': px_test,
+                            'y_pred_test': y_pred_test,
+                            'y_test': y_test,
+                            'px_threshold': px_threshold
+                }
+            
+            df_rocplot_train = pd.DataFrame(rocplot_dict_train)
+            df_rocplot_test= pd.DataFrame(rocplot_dict_test)
+            
+            df_rocplot_train.to_json(r'Results/' + str(K) + vae.__class__.__name__ + '_rocplot_train.json', default_handler=str)
+            df_rocplot_test.to_json(r'Results/' + str(K) + vae.__class__.__name__ + '_rocplot_test.json', default_handler=str)
             
             if output_file:
                 cv_results = {'Outer fold': K}

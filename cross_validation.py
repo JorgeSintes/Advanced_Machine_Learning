@@ -18,17 +18,17 @@ from models import CMC, Model2, Model3, Model4, Model5, Model6, Arthur, Betty
 
 anomaly_threshold = 2.0
 
-K_outer = 2
-K_inner = 2
+K_outer = 5
+K_inner = 5
 
-latent_spaces = [2, 4]
+latent_spaces = [2, 4, 6, 8]
 
-betas = [1]
+betas = [0.3, 0.5, 0.8, 1]
 
 hidden_size = 20
 
 batch_size = 100
-num_epochs = 30
+num_epochs = 35
 L = 5
 
 models_selec = [1,2,3]

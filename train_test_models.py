@@ -28,7 +28,6 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
     vae = model(input_shape, latent_features, hidden_size, sequence_length, num_layers)
     
     # Evaluator: Variational Inference
-    beta = 1
     vi = VariationalInference(beta=beta)
     
     # The Adam optimizer works really well with VAEs.

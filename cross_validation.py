@@ -18,10 +18,10 @@ from models import CMC, Model2, Model3, Model4, Model5, Model6, Arthur, Betty
 
 anomaly_threshold = 2.0
 
-K_outer = 5
-K_inner = 5
+K_outer = 2
+K_inner = 2
 
-latent_spaces = [2, 4, 6, 8]
+latent_spaces = [4]
 
 betas = [0.3, 0.5, 0.8, 1]
 
@@ -31,7 +31,7 @@ batch_size = 100
 num_epochs = 35
 L = 5
 
-models_selec = [3]
+models_selec = [1,2,3]
 
 run = '123'
 
@@ -84,7 +84,6 @@ FP = np.empty((K_outer, n_models))
 TP = np.empty((K_outer, n_models))
 F1 = np.empty((K_outer, n_models))
 
-
 opt_params = np.empty((K_outer, n_models), dtype=object)
 
 k_outer = 0
@@ -114,6 +113,7 @@ for train_index, test_index in CV_outer.split(X, y):
                                                                                          output_file = f)
         
         else:                                                                                 
+            print(params)
             opt_latent_space = params[0]
             opt_beta = params[1]
             
@@ -131,7 +131,7 @@ for train_index, test_index in CV_outer.split(X, y):
 ##############################################################################
 
 #Save the results on a DataFrame and print them
-cv_results = {'Outer fold': list(range(K_outer))}
+cv_results = {'Outer fold': list(range(1, K_outer+1))}
 cv_columns = ['Outer fold']
 
 for i, model in enumerate(str_models):

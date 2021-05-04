@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 from models import VariationalInference
 from sklearn.metrics import confusion_matrix, f1_score
+from tabulate import tabulate
 
 def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, beta, hidden_size, batch_size=100, num_epochs=20, L=5, K=None, output_file=None):
     '''
@@ -72,8 +74,8 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
         x_train = x_train.to(device)
         x_test = x_test.to(device)
         
-        if K != None:
-            torch.save({str(K)+vae.__class__.__name__+'_state_dict': vae.state_dict()}, str(K)+vae.__class__.__name__+'_weights.tar')
+        if K:
+            torch.save({str(K)+vae.__class__.__name__+'_state_dict': vae.state_dict()}, 'Results/' + str(K)+vae.__class__.__name__+'_weights.tar')
         
         # perform a forward pass through the model and compute the ELBO
         loss_train, diagnostics_train, outputs_train = vi(vae, x_train)
@@ -113,6 +115,48 @@ def train_test_models(X_train, y_train, X_test, y_test, model, latent_features, 
         cm = confusion_matrix(y_test, y_pred_test)
         TN,FN,FP,TP = cm[0,0], cm[1,0], cm[0,1], cm[1,1]
         F1 = f1_score(y_test,y_pred_test)
+        
+        if K:
+            rocplot_dict = {'px_train': [list(px_train)],
+                            'px_test': [list(px_test)],
+                            'y_pred_train': [list(y_pred_train)],
+                            'y_pred_test': [list(y_pred_test)],
+                            'y_train': [list(y_train)],
+                            'y_test': [list(y_test)],
+                            'px_threshold': [px_threshold]
+                }
+            
+            df_rocplot = pd.DataFrame(rocplot_dict)
+            df_rocplot.to_json(r'Results/' + str(K) + vae.__class__.__name__ + '_rocplot.json', default_handler=str)
+            
+            if output_file:
+                cv_results = {'Outer fold': K}
+                cv_columns = ['Outer fold']
+                
+                cv_results[model.__name__+'_latent_space'] = latent_features
+                cv_columns.append(model.__name__+'_latent_space')
+                
+                cv_results[model.__name__+'_beta'] = beta
+                cv_columns.append(model.__name__+'_beta')
+                
+                cv_results[model.__name__+'_accuracy'] = 1-error_test.item()
+                cv_columns.append(model.__name__+'_accuracy')
+                
+                cv_results[model.__name__+'_precision'] = TP / (TP + FP)
+                cv_columns.append(model.__name__+'_precision')
+                
+                cv_results[model.__name__+'_recall'] = TP / (TP + FN)
+                cv_columns.append(model.__name__+'_recall')
+                
+                cv_results[model.__name__+'_F1'] = F1
+                cv_columns.append(model.__name__+'_F1')
+                
+                df_cv = pd.DataFrame(cv_results, columns = cv_columns, index=[0])
+
+                print(tabulate(df_cv, headers='keys', tablefmt='psql', showindex=False))
+                output_file.write(tabulate(df_cv, headers='keys', tablefmt='psql', showindex=False))
+                output_file.flush()
+            
         
     return (error_train.item(), error_test.item(), TN, FN, FP, TP, F1)
 
@@ -169,9 +213,10 @@ def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_siz
     with torch.no_grad():
         model.eval()
         
-        if K != None:
-            torch.save({str(K)+model.__class__.__name__+'_state_dict': model.state_dict()}, str(K)+'_'+model.__class__.__name__+'_weights.tar')
-         # Load all the training and test data without batches
+        if K:
+            torch.save({str(K)+model.__class__.__name__+'_state_dict': model.state_dict()}, 'Results/' + str(K)+'_'+model.__class__.__name__+'_weights.tar')
+        
+        # Load all the training and test data without batches
         x_train = X_train
         x_test = X_test
 
@@ -192,5 +237,28 @@ def train_test_CMC(X_train, y_train, X_test, y_test, cmc, hidden_size, batch_siz
         cm = confusion_matrix(y_test, y_pred_test)
         TN,FN,FP,TP = cm[0,0], cm[1,0], cm[0,1], cm[1,1]
         F1 = f1_score(y_test,y_pred_test)
+        
+        if K:
+            if output_file:
+                cv_results = {'Outer fold': K}
+                cv_columns = ['Outer fold']
+                
+                cv_results[cmc.__name__+'_accuracy'] = 1-error_test.item()
+                cv_columns.append(cmc.__name__+'_accuracy')
+                
+                cv_results[cmc.__name__+'_precision'] = TP / (TP + FP)
+                cv_columns.append(cmc.__name__+'_precision')
+                
+                cv_results[cmc.__name__+'_recall'] = TP / (TP + FN)
+                cv_columns.append(cmc.__name__+'_recall')
+                
+                cv_results[cmc.__name__+'_F1'] = F1
+                cv_columns.append(cmc.__name__+'_F1')
+                
+                df_cv = pd.DataFrame(cv_results, columns = cv_columns, index=[0])
+
+                print(tabulate(df_cv, headers='keys', tablefmt='psql', showindex=False))
+                output_file.write(tabulate(df_cv, headers='keys', tablefmt='psql', showindex=False))
+                output_file.flush()
         
     return (error_train.item(), error_test.item(), TN, FN, FP, TP, F1)

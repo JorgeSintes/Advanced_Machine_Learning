@@ -21,9 +21,9 @@ anomaly_threshold = 2.0
 K_outer = 2
 K_inner = 2
 
-latent_spaces = [2, 4, 8, 16, 32]
+latent_spaces = [2, 4]
 
-betas = [0.3, 0.5, 0.8, 1]
+betas = [1]
 
 hidden_size = 20
 
@@ -33,9 +33,8 @@ L = 5
 
 models_selec = [1,2,3]
 
-file_results = 'CV_results_123.csv'
-file_variables = 'variables_123.csv'
-file_console = 'running_123.out'
+run = '123'
+
 
 ##############################################################################
 ############################# DATA LOADING ###################################
@@ -59,6 +58,13 @@ n_models = len(models)
 ##############################################################################
 ############################# OUTPUT FILE ####################################
 ##############################################################################
+
+file_results = 'CV_results_' + run + '.csv'
+file_variables = 'variables_' + run + '.csv'
+file_rocplot = 'rocplot_' + run + '.csv'
+file_console = 'running_' + run +'.out'
+
+rocplot_df = pd.DataFrame()
 
 f = open(file_console, 'a')
 
@@ -104,7 +110,8 @@ for train_index, test_index in CV_outer.split(X, y):
             TN[k_outer, m], FN[k_outer, m],
             FP[k_outer, m], TP[k_outer, m], F1[k_outer, m]) = train_test_CMC(X_train, y_train, X_test, y_test, 
                                                                                          models[m], hidden_size, batch_size, 
-                                                                                         num_epochs, K=k_outer+1, output_file = f)
+                                                                                         num_epochs, K=k_outer+1, 
+                                                                                         output_file = f)
         
         else:                                                                                 
             opt_latent_space = params[0]
@@ -148,12 +155,17 @@ for i, model in enumerate(str_models):
 
 df_cv = pd.DataFrame(cv_results, columns = cv_columns)
 
+print(tabulate(df_cv, headers='keys', tablefmt='psql', showindex=False))
+f.write(tabulate(df_cv, headers='keys', tablefmt='psql', showindex=False))
+
+df_cv.to_csv(r'Results/' + file_results, index = False)
+
 variables = {
     'anomaly_threshold': anomaly_threshold,
     'K_outer': K_outer,
     'K_inner': K_inner,
-    'latent_spaces': latent_spaces,
-    'betas': betas,
+    'latent_spaces': [latent_spaces],
+    'betas': [betas],
     'hidden_size': hidden_size,
     'batch_size': batch_size,
     'num_epochs': num_epochs,
@@ -162,10 +174,5 @@ variables = {
 
 df_variables = pd.DataFrame(variables)
 
-print(tabulate(df_cv, headers='keys', tablefmt='psql', showindex=False))
-f.write(tabulate(df_cv, headers='keys', tablefmt='psql', showindex=False))
-
-#Save it on a file
-df_cv.to_csv(r'Results/' + file_results, index = False)
 df_variables.to_csv(r'Results/' + file_variables)
 f.close()
